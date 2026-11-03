@@ -7,12 +7,29 @@ pub fn assemble(io_manager: *IoManager, file_path: []const u8) !u8 {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    std.debug.print("Assembling...\n", .{});
+    try io_manager.fastPrint(.STDOUT, "Assembling...\n", .{});
 
     const expanded_path = try expandTilde(allocator, io_manager.init.environ_map, file_path);
 
     std.debug.print("DEBUG: past file_path : {s}\n", .{file_path});
     std.debug.print("DEBUG: expanded path  : {s}\n", .{expanded_path});
+
+    // le o conteudo do arquivo
+    const source = try std.Io.Dir.cwd().readFileAlloc(io_manager.init.io, file_path, allocator, .unlimited);
+
+
+    var line: u8 = 0;
+    var col: u8 =  0;
+    var i: usize =  0;
+    
+    while (i < source.len) : (i += 1) {
+         
+    }
+
+    for (source) |c| {
+        try io_manager.stdout.*.print("{c}", .{c});
+    }
+    try io_manager.stdout.*.flush();
 
     return 0;
 }
