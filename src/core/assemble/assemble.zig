@@ -18,21 +18,20 @@ pub fn assemble(io_manager: *IoManager, file_path: []const u8) !u8 {
     // le o conteudo do arquivo
     const source = try std.Io.Dir.cwd().readFileAlloc(io_manager.init.io, file_path, allocator, .unlimited);
 
-    const lexer = Lexer.init();
-    const tokens = lexer.asmTokenize(allocator, source);
+    var lexer = Lexer.init(allocator, io_manager, &source);
+    const tokens = try lexer.asmTokenize();
 
     for (source) |c| {
         try io_manager.stdout.*.print("{c}", .{c});
     }
     try io_manager.stdout.*.flush();
 
-    io_manager.fastPrint(.STDOUT, "\n\n≠=========≠\n\n");
+    try io_manager.fastPrint(.STDOUT, "\n\n≠=========≠\n\n", .{});
 
-    for (tokens) |t| {
+    for (tokens.items) |t| {
         t.selfPrint();
     }
     std.debug.print("\n", .{});
-
 
     return 0;
 }
