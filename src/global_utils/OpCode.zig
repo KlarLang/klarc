@@ -1,3 +1,4 @@
+const std = @import("std");
 
 //0x00 -> NOP
 
@@ -26,8 +27,10 @@
 //0x31 -> RETURN
 
 //0xFF -> HALT
-pub const OpCode = enum (u8){
+pub const OpCode = enum(u8) {
     NOP = 0x00,
+
+    NUMBER_LITERAL = 0x01,
 
     PUSH_I8 = 0x10,
     PUSH_I16 = 0x11,
@@ -48,5 +51,30 @@ pub const OpCode = enum (u8){
 
     CALL = 0x30,
     RETURN = 0x31,
-    HALT = 0xFF,  
+    HALT = 0xFF,
+
+    pub fn getOpcode(name: []const u8) OpCode {
+        return OpCodeMap.get(name) orelse .NOP;
+    }
 };
+
+pub const OpCodeMap = std.StaticStringMap(OpCode).initComptime(.{
+    .{ "NOP", .NOP },
+    .{ "PUSH_I8", .PUSH_I8 },
+    .{ "PUSH_I16", .PUSH_I16 },
+    .{ "PUSH_I32", .PUSH_I32 },
+    .{ "PUSH_I64", .PUSH_I64 },
+    .{ "PUSH_I128", .PUSH_I128 },
+    .{ "PUSH_F8", .PUSH_F8 },
+    .{ "PUSH_F16", .PUSH_F16 },
+    .{ "PUSH_F32", .PUSH_F32 },
+    .{ "PUSH_F64", .PUSH_F64 },
+    .{ "PUSH_F128", .PUSH_F128 },
+    .{ "ADD", .ADD },
+    .{ "SUB", .SUB },
+    .{ "MUL", .MUL },
+    .{ "DIV", .DIV },
+    .{ "CALL", .CALL },
+    .{ "RETURN", .RETURN },
+    .{ "HALT", .HALT },
+});

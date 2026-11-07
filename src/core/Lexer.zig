@@ -1,7 +1,8 @@
 const std = @import("std");
 
-const Op = @import("global_utils").Op;
 const IoManager = @import("global_utils").IoManager;
+const Op = @import("global_utils").Op;
+const OpCode = @import("global_utils").OpCode;
 
 pub const Lexer = @This();
 
@@ -42,17 +43,37 @@ pub fn asmTokenize(self: *Lexer) !std.ArrayList(Op) {
             continue;
         }
 
-        if (std.ascii.isAlphabetic(c)) {
+        if (std.ascii.isDigit(c)) {
             const start: usize = self.i;
             const start_col = self.col;
 
-            while (!self.EOF() and std.ascii.isAlphabetic(self.source.*[self.i])) {
+            while (!self.EOF() and std.ascii.isDigit(self.source.*[self.i])) {
                 _ = self.consume();
             }
 
             tokens.append(self.allocator, .{
                 .value = self.source.*[start..self.i],
-                .opcode = null,
+                .opcode = OpCode.NUMBER_LITERAL,
+                .line = self.line,
+                .col = start_col,
+            }) catch |err| {
+                try self.io_manager.fastPrint(.STDERR, "Error: {any}\n", .{err});
+                return tokens;
+            };
+            continue;
+        }
+
+        if (std.ascii.isAlphabetic(c)) {
+            const start: usize = self.i;
+            const start_col = self.col;
+
+            while (!self.EOF() and (std.ascii.isAlphabetic(self.source.*[self.i]) or std.ascii.isDigit(self.source.*[self.i]) or self.source.*[self.i] == '_')) {
+                _ = self.consume();
+            }
+
+            tokens.append(self.allocator, .{
+                .value = self.source.*[start..self.i],
+                .opcode = OpCode.getOpcode(self.source.*[start..self.i]),
                 .line = self.line,
                 .col = start_col,
             }) catch |err| {

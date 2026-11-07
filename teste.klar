@@ -1,1 +1,7 @@
-teste a s as a s sad ad a sd 
+PUSH_I8 10
+PUSH_I8 10
+
+ADD
+
+CALL 1
+HALT
