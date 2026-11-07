@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const IoManager = @import("global_utils").IoManager;
+const Lexer = @import("../Lexer.zig").Lexer;
 
 pub fn assemble(io_manager: *IoManager, file_path: []const u8) !u8 {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -17,19 +18,21 @@ pub fn assemble(io_manager: *IoManager, file_path: []const u8) !u8 {
     // le o conteudo do arquivo
     const source = try std.Io.Dir.cwd().readFileAlloc(io_manager.init.io, file_path, allocator, .unlimited);
 
-
-    var line: u8 = 0;
-    var col: u8 =  0;
-    var i: usize =  0;
-    
-    while (i < source.len) : (i += 1) {
-         
-    }
+    const lexer = Lexer.init();
+    const tokens = lexer.asmTokenize(allocator, source);
 
     for (source) |c| {
         try io_manager.stdout.*.print("{c}", .{c});
     }
     try io_manager.stdout.*.flush();
+
+    io_manager.fastPrint(.STDOUT, "\n\n≠=========≠\n\n");
+
+    for (tokens) |t| {
+        t.selfPrint();
+    }
+    std.debug.print("\n", .{});
+
 
     return 0;
 }
