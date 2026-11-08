@@ -49,6 +49,7 @@ pub const TokenType = enum {
     range, // ..
     comma, // ,
     semicolon, // ;
+    equal, // =
 
     identifier,
     number_literal,

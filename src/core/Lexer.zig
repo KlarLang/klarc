@@ -60,6 +60,7 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
             '!' => .not,
             ',' => .comma,
             ';' => .semicolon,
+            '=' => .equal,
             else => .identifier,
         };
 

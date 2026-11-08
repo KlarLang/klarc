@@ -1,6 +1,6 @@
 set -e
 
-zig build 
+zig build -Doptimize=ReleaseFast
 zig build test
 
 echo "Installing klarc..."

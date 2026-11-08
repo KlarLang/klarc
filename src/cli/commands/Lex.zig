@@ -11,8 +11,8 @@ pub fn lex(io_manager: *IoManager, flags: *LexFlags, file_path: []const u8) !u8 
     const expanded_path = try expandTilde(allocator, io_manager.init.environ_map, file_path);
 
     if (flags.*.debug) {
-        io_manager.fastPrint(.STDOUT, "DEBUG: past file_path : {s}\n", .{file_path});
-        io_manager.fastPrint(.STDOUT, "DEBUG: expanded path  : {s}\n", .{expanded_path});
+        try io_manager.fastPrint(.STDOUT, "DEBUG: past file_path : {s}\n", .{file_path});
+        try io_manager.fastPrint(.STDOUT, "DEBUG: expanded path  : {s}\n", .{expanded_path});
     }
 
     const source = try std.Io.Dir.cwd().readFileAlloc(io_manager.init.io, expanded_path, allocator, .unlimited);
