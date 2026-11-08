@@ -10,7 +10,7 @@ allocator: std.mem.Allocator,
 line: u32 = 1,
 col: u32 = 1,
 i: usize = 0,
-source: []const u8, // não precisa de ponteiro pra slice
+source: []const u8,
 
 pub fn init(allocator: std.mem.Allocator, source: []const u8) Lexer {
     return .{

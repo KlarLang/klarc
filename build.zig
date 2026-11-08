@@ -7,6 +7,8 @@ pub fn build(b: *std.Build) void {
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", "0.2.0-dev");
 
+    const config_module = build_options.createModule();
+
     const global_utils = b.addModule("global_utils", .{
         .root_source_file = b.path("src/global_utils/mod.zig"),
         .target = target,
@@ -20,16 +22,42 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    const global_flags = b.addModule("global_flags", .{
+        .root_source_file = b.path("src/cli/global_flags/mod.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "config", .module = config_module },
+        },
+    });
+
+    const commands_flags = b.addModule("commands_flags", .{
+        .root_source_file = b.path("src/cli/commands/flags/mod.zig"),
+        .target = target,
+        .imports = &.{},
+    });
+
+    const commands = b.addModule("commands", .{
+        .root_source_file = b.path("src/cli/commands/mod.zig"),
+        .target = target,
+        .imports = &.{
+            .{ .name = "core", .module = core },
+            .{ .name = "global_utils", .module = global_utils },
+            .{ .name = "commands_flags", .module = commands_flags },
+        },
+    });
+
     const mod = b.addModule("klarc", .{
         .root_source_file = b.path("src/cli/entry.zig"),
         .target = target,
         .imports = &.{
             .{ .name = "global_utils", .module = global_utils },
             .{ .name = "core", .module = core },
+            .{ .name = "commands", .module = commands },
+            .{ .name = "global_flags", .module = global_flags },
+            .{ .name = "commands_flags", .module = commands_flags },
+            .{ .name = "config", .module = config_module },
         },
     });
-
-    mod.addOptions("config", build_options);
 
     const exe = b.addExecutable(.{
         .name = "klarc",
@@ -40,11 +68,10 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "klarc", .module = mod },
                 .{ .name = "global_utils", .module = global_utils },
+                .{ .name = "config", .module = config_module },
             },
         }),
     });
-
-    exe.root_module.addOptions("config", build_options);
 
     b.installArtifact(exe);
 

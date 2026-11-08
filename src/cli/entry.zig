@@ -2,9 +2,13 @@ const std = @import("std");
 
 const config = @import("config");
 
+const Commands = @import("commands");
+const CommandFlags = @import("commands_flags");
+
+const GlobalFlags = @import("global_flags");
+
 const Checker = @import("global_utils").Cheker;
 const IoManager = @import("global_utils").IoManager;
-const Lexer = @import("core").Lexer;
 
 pub fn entry(io_manager: *IoManager, args: []const [:0]const u8) !u8 {
     if (args.len <= 1) {
@@ -17,12 +21,15 @@ pub fn entry(io_manager: *IoManager, args: []const [:0]const u8) !u8 {
         const arg = args[i];
 
         if (Checker.flagEqual(arg, &.{ "-h", "--help" })) {
-            try io_manager.fastPrint(.STDOUT, "Usage: klarc [commands|flags]\n", .{});
+            try GlobalFlags.Help.help(io_manager.stdout);
+            try io_manager.stdout.flush();
+
             return 0;
         }
 
         if (Checker.flagEqual(arg, &.{ "-V", "--version" })) {
-            try io_manager.fastPrint(.STDOUT, "klarc {s}\n", .{config.version});
+            try GlobalFlags.Version.version(io_manager.stdout);
+            try io_manager.stdout.flush();
             return 0;
         }
 
@@ -32,43 +39,43 @@ pub fn entry(io_manager: *IoManager, args: []const [:0]const u8) !u8 {
                 return 1;
             }
 
+            var lex_flags = CommandFlags.LexFlags{
+                .debug = false,
+                .verbose = false,
+            };
+            var file_path: ?[]const u8 = null;
+
             i += 1;
-            const file_path = args[i];
+            while (i < args.len) : (i += 1) {
+                const next_arg = args[i];
 
-            const allocator = std.heap.smp_allocator;
-
-            try io_manager.fastPrint(.STDOUT, "Assembling...\n", .{});
-
-            const expanded_path = try expandTilde(allocator, io_manager.init.environ_map, file_path);
-
-            std.debug.print("DEBUG: past file_path : {s}\n", .{file_path});
-            std.debug.print("DEBUG: expanded path  : {s}\n", .{expanded_path});
-
-            const source = try std.Io.Dir.cwd().readFileAlloc(io_manager.init.io, expanded_path, allocator, .unlimited);
-            defer allocator.free(source);
-
-            allocator.free(expanded_path);
-
-            var lexer = Lexer.init(allocator, source);
-            const tokens = try lexer.tokenize();
-
-            for (source) |c| {
-                try io_manager.stdout.*.print("{c}", .{c});
+                if (Checker.flagEqual(next_arg, &.{ "-v", "--verbose" })) {
+                    lex_flags.verbose = true;
+                } else if (Checker.flagEqual(next_arg, &.{ "-d", "--debug" })) {
+                    lex_flags.debug = true;
+                } else if (std.mem.startsWith(u8, next_arg, "-")) {
+                    try io_manager.fastPrint(.STDERR, "Unknown flag for lex command: {s}\n", .{next_arg});
+                    return 1;
+                } else {
+                    file_path = next_arg;
+                }
             }
-            try io_manager.stdout.*.flush();
 
-            try io_manager.fastPrint(.STDOUT, "\n\n≠=========≠\n\n", .{});
+            const path = file_path orelse {
+                try io_manager.fastPrint(.STDERR, "You need to inform the file to lex.\n", .{});
+                return 1;
+            };
 
-            for (tokens.items) |t| {
-                try t.selfPrint(io_manager);
-            }
-            std.debug.print("\n", .{});
+            _ = Commands.Lex.lex(io_manager, &lex_flags, path) catch {
+                return 1;
+            };
 
             return 0;
         }
 
-        try io_manager.fastPrint(.STDOUT, "Usage: klarc [commands|flags]\n", .{});
-        return 0;
+        try GlobalFlags.Help.help(io_manager.stderr);
+        try io_manager.stderr.flush();
+        return 1;
     }
 
     return 0;
@@ -93,33 +100,44 @@ fn expandTilde(allocator: std.mem.Allocator, environ_map: *std.process.Environ.M
 }
 
 // commands | flags
+
 test "cli: testing flag '--help'" {
     _ = @import("config");
+    const TestFlags = @import("global_flags");
 
     const help_expected = "Usage: klarc [commands|flags]\n";
 
-    var buf: [1024]u8 = undefined;
-    var w: std.Io.Writer = .fixed(&buf);
-    try w.writeAll("Usage: klarc [commands|flags]\n");
+    var writer_alloc = std.Io.Writer.Allocating.init(std.testing.allocator);
+    defer writer_alloc.deinit();
 
-    try std.testing.expectEqualStrings(help_expected, w.buffered());
+    try TestFlags.Help.help(&writer_alloc.writer);
+
+    const actual = try writer_alloc.toOwnedSlice();
+    defer std.testing.allocator.free(actual);
+
+    try std.testing.expectEqualStrings(help_expected, actual);
 }
 
 test "cli: testing flag '--version'" {
-    _ = @import("config");
+    const TestConfig = @import("config");
+    const TestFlags = @import("global_flags");
 
-    const help_expected = config.version;
+    var writer_alloc = std.Io.Writer.Allocating.init(std.testing.allocator);
+    defer writer_alloc.deinit();
 
-    var buf: [1024]u8 = undefined;
-    var w: std.Io.Writer = .fixed(&buf);
+    try TestFlags.Version.version(&writer_alloc.writer);
 
-    try w.writeAll(config.version);
+    const actual = try writer_alloc.toOwnedSlice();
+    defer std.testing.allocator.free(actual);
 
-    try std.testing.expectEqualStrings(help_expected, w.buffered());
+    const version_expected = try std.fmt.allocPrint(std.testing.allocator, "klarc {s}\n", .{TestConfig.version});
+    defer std.testing.allocator.free(version_expected);
+
+    try std.testing.expectEqualStrings(version_expected, actual);
 }
 
 test "cli: testing command 'lex'" {
-    _ = @import("core");
+    const Lexer = @import("core").Lexer;
 
     const source =
         \\fn add(a: i32, b: i32) i32 {
@@ -179,9 +197,13 @@ test "cli: testing command 'lex'" {
     var tokens = try lexer.tokenize();
     defer tokens.deinit(std.testing.allocator);
 
-    var buf: [4096]u8 = undefined;
-    var w: std.Io.Writer = .fixed(&buf);
-    for (tokens.items) |t| try t.write(&w);
+    var writer_alloc = std.Io.Writer.Allocating.init(std.testing.allocator);
+    defer writer_alloc.deinit();
 
-    try std.testing.expectEqualStrings(expected, w.buffered());
+    for (tokens.items) |t| try t.write(&writer_alloc.writer);
+
+    const actual = try writer_alloc.toOwnedSlice();
+    defer std.testing.allocator.free(actual);
+
+    try std.testing.expectEqualStrings(expected, actual);
 }
