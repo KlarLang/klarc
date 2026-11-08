@@ -4,6 +4,9 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", "0.2.0-dev");
+
     const global_utils = b.addModule("global_utils", .{
         .root_source_file = b.path("src/global_utils/mod.zig"),
         .target = target,
@@ -26,6 +29,8 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    mod.addOptions("config", build_options);
+
     const exe = b.addExecutable(.{
         .name = "klarc",
         .root_module = b.createModule(.{
@@ -38,6 +43,8 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+
+    exe.root_module.addOptions("config", build_options);
 
     b.installArtifact(exe);
 

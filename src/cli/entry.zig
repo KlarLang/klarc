@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const config = @import("config");
+
 const Checker = @import("global_utils").Cheker;
 const IoManager = @import("global_utils").IoManager;
 const Lexer = @import("core").Lexer;
@@ -20,7 +22,7 @@ pub fn entry(io_manager: *IoManager, args: []const [:0]const u8) !u8 {
         }
 
         if (Checker.flagEqual(arg, &.{ "-V", "--version" })) {
-            try io_manager.fastPrint(.STDOUT, "klarc v0.2.0-d3v\n", .{});
+            try io_manager.fastPrint(.STDOUT, "klarc {s}\n", .{config.version});
             return 0;
         }
 
@@ -90,7 +92,33 @@ fn expandTilde(allocator: std.mem.Allocator, environ_map: *std.process.Environ.M
     return allocator.dupe(u8, path);
 }
 
-test "lexer: posições do programa mínimo" {
+// commands | flags
+test "cli: testing flag '--help'" {
+    _ = @import("config");
+
+    const help_expected = "Usage: klarc [commands|flags]\n";
+
+    var buf: [1024]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buf);
+    try w.writeAll("Usage: klarc [commands|flags]\n");
+
+    try std.testing.expectEqualStrings(help_expected, w.buffered());
+}
+
+test "cli: testing flag '--version'" {
+    _ = @import("config");
+
+    const help_expected = config.version;
+
+    var buf: [1024]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buf);
+
+    try w.writeAll(config.version);
+
+    try std.testing.expectEqualStrings(help_expected, w.buffered());
+}
+
+test "cli: testing command 'lex'" {
     _ = @import("core");
 
     const source =
