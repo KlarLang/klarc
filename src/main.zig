@@ -11,7 +11,7 @@ pub fn main(init: std.process.Init) !void {
     var stdout = std.Io.File.stdout().writer(init.io, &stdout_buffer);
 
     var stderr_buffer: [2048]u8 = undefined;
-    var stderr = std.Io.File.stdout().writer(init.io, &stderr_buffer);
+    var stderr = std.Io.File.stderr().writer(init.io, &stderr_buffer);
 
     var io_manager = IoManager{
         .init = &init,

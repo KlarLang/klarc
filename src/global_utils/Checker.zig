@@ -1,3 +1,5 @@
+pub const Checker = @This();
+
 pub fn cmdEqual(potential_cmd: []const u8, expected_cmd: []const u8) bool {
     if (potential_cmd.len != expected_cmd.len) return false;
 

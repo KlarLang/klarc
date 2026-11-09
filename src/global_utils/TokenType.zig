@@ -44,23 +44,45 @@ pub const TokenType = enum {
     deref, // .*
     dot, // .
     optional, // ?
-    not, // !
     colon, // :
     range, // ..
     comma, // ,
     semicolon, // ;
     equal, // =
+    equal_equal, // ==
+
+    plus, // +
+    plus_equal, // +=
+    minus, // -
+    minus_equal, // -=
+    star, // *
+    star_equal, // *=
+    slash, // /
+    slash_equal, // /=
+
+    less, // <
+    less_equal, // <=
+
+    greater, // >
+    greater_equal, // >=
+
+    remainder, // %
+    remainder_equal, // %=
+
+    not, // !
+    not_equal, // !=
+    and_comercial, // &
+
+    double_quote, // "
+    quote, // '
+
+    tilde, // ~
 
     identifier,
     number_literal,
     string_literal,
 
-    plus,
-    minus,
-    star,
-    slice,
-
-    unknow,
+    unknown,
     eof,
 
     pub fn getOpcode(name: []const u8) TokenType {
@@ -90,5 +112,5 @@ pub const TokenTypeMap = std.StaticStringMap(TokenType).initComptime(.{
     .{ "ensure", .ensure_kw },
 
     .{ "true", .true_kw },
-    .{ "true", .false_kw },
+    .{ "false", .false_kw },
 });
