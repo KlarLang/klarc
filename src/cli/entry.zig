@@ -66,8 +66,8 @@ pub fn entry(io_manager: *IoManager, args: []const [:0]const u8) !u8 {
                 return 1;
             };
 
-            _ = Commands.Lex.lex(io_manager, &lex_flags, path) catch {
-                try io_manager.fastPrint(.STDERR, "Error while lexing file: {s}\n", .{path});
+            _ = Commands.Lex.lex(io_manager, &lex_flags, path) catch |err| {
+                try io_manager.fastPrint(.STDERR, "Error while lexing {s}: {s}\n", .{ path, @errorName(err) });
                 return 1;
             };
 

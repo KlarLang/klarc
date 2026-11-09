@@ -71,7 +71,6 @@ pub const TokenType = enum {
 
     not, // !
     not_equal, // !=
-    and_comercial, // &
 
     double_quote, // "
     quote, // '

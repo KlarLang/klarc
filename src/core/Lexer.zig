@@ -24,6 +24,7 @@ pub fn init(allocator: std.mem.Allocator, source: []const u8) Lexer {
 
 pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
     var tokens = std.ArrayList(Token).empty;
+    errdefer tokens.deinit(self.allocator);
 
     while (!self.EOF()) {
         const start = self.i;
@@ -139,7 +140,7 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
             else => blk: {
                 if (c >= 0x80) {
                     std.debug.print("Lexical Error: Non-ASCII (multi-byte) character detected in row {}, column {}.\n", .{ start_line, start_col });
-                    return error.LexicalError;
+                    return error.MultiByteLexicalError;
                 }
 
                 break :blk .unknown;
