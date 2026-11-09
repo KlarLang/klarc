@@ -1,7 +1,7 @@
 .{
     .name = .klarc,
 
-    .version = "0.17.0",
+    .version = "0.2.0-dev",
 
     .fingerprint = 0xd997737b0058cc04,
 

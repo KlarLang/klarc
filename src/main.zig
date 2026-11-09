@@ -22,7 +22,7 @@ pub fn main(init: std.process.Init) !void {
     const e_code = try klarc.entry(&io_manager, args);
 
     if (e_code != 0) {
-        try io_manager.stderr.print("Compilation ended with errors.\nExit code: {d}\n.", .{e_code});
+        try io_manager.fastPrint(.STDERR, "Compilation ended with errors.\nExit code: {d}\n.", .{e_code});
         std.process.exit(e_code);
     }
 
