@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const build_options = b.addOptions();
-    build_options.addOption([]const u8, "version", "0.2.0-dev");
+    build_options.addOption([]const u8, "version", "0.2.1-dev");
 
     const config_module = build_options.createModule();
 

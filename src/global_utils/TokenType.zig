@@ -7,7 +7,6 @@ pub const TokenType = enum {
     var_kw,
     return_kw,
     struct_kw,
-    type_kw,
     module_kw,
 
     // flux
@@ -16,6 +15,8 @@ pub const TokenType = enum {
     afterall_kw,
     because_kw,
     match_kw,
+    and_kw,
+    or_kw,
 
     //error
     try_kw,
@@ -72,14 +73,14 @@ pub const TokenType = enum {
     not, // !
     not_equal, // !=
 
-    double_quote, // "
-    quote, // '
-
     tilde, // ~
 
     identifier,
-    number_literal,
     string_literal,
+    char_literal,
+
+    integer_literal,
+    floating_literal,
 
     unknown,
     eof,
@@ -95,7 +96,6 @@ pub const TokenTypeMap = std.StaticStringMap(TokenType).initComptime(.{
     .{ "var", .var_kw },
     .{ "return", .return_kw },
     .{ "struct", .struct_kw },
-    .{ "type", .type_kw },
     .{ "module", .module_kw },
 
     .{ "if", .if_kw },
@@ -103,6 +103,8 @@ pub const TokenTypeMap = std.StaticStringMap(TokenType).initComptime(.{
     .{ "afterall", .afterall_kw },
     .{ "because", .because_kw },
     .{ "match", .match_kw },
+    .{ "and", .and_kw },
+    .{ "or", .or_kw },
 
     .{ "try", .try_kw },
     .{ "error", .error_kw },

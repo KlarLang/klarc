@@ -32,39 +32,90 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
         const start_col = self.col;
         const c = self.advance();
 
+        if (c == ' ' or c == '\t' or c == '\r' or c == '\n') {
+            continue;
+        }
+
+        if (c == '"') {
+            const str_lit = try self.readStringLiteral();
+            try tokens.append(self.allocator, .{
+                .value = str_lit,
+                .token_type = .string_literal,
+                .line = start_line,
+                .col = start_col,
+            });
+            continue;
+        }
+
+        if (c == '\'') {
+            const char_lit = try self.readCharLiteral();
+            try tokens.append(self.allocator, .{
+                .value = char_lit,
+                .token_type = .char_literal,
+                .line = start_line,
+                .col = start_col,
+            });
+            continue;
+        }
+
+        if (std.ascii.isDigit(c)) {
+            self.readNumberLiteral();
+            const token_value = self.source[start..self.i];
+
+            const token_type: TokenType = if (std.mem.indexOf(u8, token_value, ".") != null) .floating_literal else .integer_literal;
+
+            try tokens.append(self.allocator, .{
+                .value = token_value,
+                .token_type = token_type,
+                .line = start_line,
+                .col = start_col,
+            });
+            continue;
+        }
+
+        if (std.ascii.isAlphabetic(c) or c == '_') {
+            while (!self.EOF() and isIdentChar(self.peek())) _ = self.advance();
+            const token_value = self.source[start..self.i];
+
+            try tokens.append(self.allocator, .{
+                .value = token_value,
+                .token_type = TokenType.getOpcode(token_value),
+                .line = start_line,
+                .col = start_col,
+            });
+            continue;
+        }
+
         const tag: TokenType = switch (c) {
-            ' ', '\t', '\r', '\n' => continue,
-            '0'...'9' => blk: {
-                while (!self.EOF() and std.ascii.isDigit(self.peek())) _ = self.advance();
-                break :blk .number_literal;
-            },
-            'a'...'z', 'A'...'Z', '_' => blk: {
-                while (!self.EOF() and isIdentChar(self.peek())) _ = self.advance();
-                break :blk TokenType.getOpcode(self.source[start..self.i]);
-            },
             '+' => blk: {
                 if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .plus_equal;
-                } else {
-                    break :blk .plus;
                 }
+                break :blk .plus;
             },
             '-' => blk: {
-                if (!self.EOF() and self.peek() == '=') {
+                if (!self.EOF() and self.peek() == '-') {
+                    if (self.i + 1 < self.source.len and self.source[self.i + 1] == '>') {
+                        _ = self.advance();
+                        _ = self.advance();
+                        break :blk .association_arrow;
+                    }
+
+                    return error.UnknowToken;
+                } else if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .minus_equal;
-                } else {
-                    break :blk .minus;
                 }
+                break :blk .minus;
             },
             '*' => blk: {
                 if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .star_equal;
-                } else {
-                    break :blk .star;
                 }
+
+                break :blk .star;
             },
             '/' => blk: {
                 if (!self.EOF() and self.peek() == '/') {
@@ -75,54 +126,62 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
                 if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .slash_equal;
-                } else {
-                    break :blk .slash;
                 }
+
+                break :blk .slash;
             },
             '!' => blk: {
                 if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .not_equal;
-                } else {
-                    break :blk .not;
                 }
+                break :blk .not;
             },
 
             '=' => blk: {
                 if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .equal_equal;
-                } else {
-                    break :blk .equal;
+                } else if (!self.EOF() and self.peek() == '>') {
+                    _ = self.advance();
+                    break :blk .match_arrow;
                 }
+
+                break :blk .equal;
             },
             '%' => blk: {
                 if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .remainder_equal;
-                } else {
-                    break :blk .remainder;
                 }
+
+                break :blk .remainder;
             },
             '<' => blk: {
                 if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .less_equal;
-                } else {
-                    break :blk .less;
                 }
+
+                break :blk .less;
             },
             '>' => blk: {
                 if (!self.EOF() and self.peek() == '=') {
                     _ = self.advance();
                     break :blk .greater_equal;
-                } else {
-                    break :blk .greater;
                 }
+
+                break :blk .greater;
             },
-            '~' => .tilde,
-            '"' => .double_quote,
-            '\'' => .quote,
+            '~' => blk: {
+                if (!self.EOF() and self.peek() == '>') {
+                    _ = self.advance();
+                    break :blk .forward_arrow;
+                }
+
+                break :blk .tilde;
+            },
+            '\'' => .slash,
             ':' => .colon,
             '[' => .l_bracket,
             ']' => .r_bracket,
@@ -133,7 +192,17 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
             '#' => .hash,
             '@' => .at,
             '&' => .address,
-            '.' => .dot,
+            '.' => blk: {
+                if (!self.EOF() and self.peek() == '.') {
+                    _ = self.advance();
+                    break :blk .range;
+                } else if (!self.EOF() and self.peek() == '*') {
+                    _ = self.advance();
+                    break :blk .deref;
+                }
+
+                break :blk .dot;
+            },
             '?' => .optional,
             ',' => .comma,
             ';' => .semicolon,
@@ -162,6 +231,76 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
         .col = self.col,
     });
     return tokens;
+}
+
+fn readStringLiteral(self: *Lexer) ![]const u8 {
+    const start = self.i;
+    while (!self.EOF() and self.peek() != '"') _ = self.advance();
+    if (self.EOF()) return error.UnterminatedStringLiteral;
+    _ = self.advance(); // consume closing quote
+    return self.source[start .. self.i - 1]; // exclude closing quote
+}
+
+fn readCharLiteral(self: *Lexer) ![]const u8 {
+    const start = self.i;
+    while (!self.EOF() and self.peek() != '\'') _ = self.advance();
+    if (self.EOF()) return error.UnterminatedCharLiteral;
+    _ = self.advance();
+    return self.source[start .. self.i - 1];
+}
+
+fn readIdentifier(self: *Lexer) []const u8 {
+    const start = self.i;
+    while (!self.EOF() and isIdentChar(self.peek())) _ = self.advance();
+    return self.source[start..self.i];
+}
+
+fn readNumberLiteral(self: *Lexer) void {
+    const first_char = self.source[self.i - 1];
+
+    if (first_char == '0' and !self.EOF()) {
+        const next = self.peek();
+        if (next == 'x' or next == 'b' or next == 'o') {
+            _ = self.advance();
+
+            while (!self.EOF()) {
+                const c = self.peek();
+                if (std.ascii.isAlphanumeric(c) or c == '_') {
+                    _ = self.advance();
+                } else {
+                    break;
+                }
+            }
+            return;
+        }
+    }
+
+    while (!self.EOF()) {
+        const next = self.peek();
+        if (std.ascii.isDigit(next) or next == '_') {
+            _ = self.advance();
+        } else {
+            break;
+        }
+    }
+
+    if (!self.EOF() and self.peek() == '.') {
+        if (self.i + 1 < self.source.len) {
+            const next_after_dot = self.source[self.i + 1];
+            if (std.ascii.isDigit(next_after_dot)) {
+                _ = self.advance();
+
+                while (!self.EOF()) {
+                    const next = self.peek();
+                    if (std.ascii.isDigit(next) or next == '_') {
+                        _ = self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn advance(self: *Lexer) u8 {
@@ -232,9 +371,9 @@ test "cli: testing command 'lex'" {
         \\l_paren(()    6,10
         \\identifier(add)    6,11
         \\l_paren(()    6,14
-        \\number_literal(1)    6,15
+        \\integer_literal(1)    6,15
         \\comma(,)    6,16
-        \\number_literal(2)    6,18
+        \\integer_literal(2)    6,18
         \\r_paren())    6,19
         \\r_paren())    6,20
         \\semicolon(;)    6,21
