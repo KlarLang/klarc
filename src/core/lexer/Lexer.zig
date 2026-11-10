@@ -3,6 +3,7 @@ const std = @import("std");
 const IoManager = @import("global_utils").IoManager;
 const Token = @import("global_utils").Token;
 const TokenType = @import("global_utils").TokenType;
+const LexError = @import("LexerError.zig").LexError;
 
 pub const Lexer = @This();
 
@@ -208,7 +209,6 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
             ';' => .semicolon,
             else => blk: {
                 if (c >= 0x80) {
-                    std.debug.print("Lexical Error: Non-ASCII (multi-byte) character detected in row {}, column {}.\n", .{ start_line, start_col });
                     return error.MultiByteLexicalError;
                 }
 

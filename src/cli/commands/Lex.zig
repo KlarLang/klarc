@@ -4,9 +4,10 @@ const IoManager = @import("global_utils").IoManager;
 const Checker = @import("global_utils").Cheker;
 
 const Lexer = @import("core").Lexer;
+const LexError = @import("core").LexError;
 const LexFlags = @import("commands_flags").LexFlags;
 
-pub fn lex(io_manager: *IoManager, flags: *LexFlags, file_path: []const u8) !u8 {
+pub fn lex(io_manager: *IoManager, flags: *LexFlags, file_path: []const u8) anyerror!u8 {
     const allocator = std.heap.smp_allocator;
     const expanded_path = try expandTilde(allocator, io_manager.init.environ_map, file_path);
 
@@ -15,7 +16,14 @@ pub fn lex(io_manager: *IoManager, flags: *LexFlags, file_path: []const u8) !u8 
         try io_manager.fastPrint(.STDOUT, "DEBUG: expanded path  : {s}\n", .{expanded_path});
     }
 
-    const source = try std.Io.Dir.cwd().readFileAlloc(io_manager.init.io, expanded_path, allocator, .unlimited);
+    const source = std.Io.Dir.cwd().readFileAlloc(io_manager.init.io, expanded_path, allocator, .unlimited) catch |err| {
+        if (err == error.FileNotFound) {
+            try io_manager.fastPrint(.STDERR, "File not found: {s}\n", .{file_path});
+        } else {
+            try io_manager.fastPrint(.STDERR, "Error reading file: {s}\n", .{@errorName(err)});
+        }
+        return 1;
+    };
     defer allocator.free(source);
 
     allocator.free(expanded_path);
@@ -44,7 +52,17 @@ pub fn lex(io_manager: *IoManager, flags: *LexFlags, file_path: []const u8) !u8 
     }
 
     var lexer = Lexer.init(allocator, source);
-    const tokens = try lexer.tokenize();
+    const tokens = lexer.tokenize() catch |err| {
+        switch (err) {
+            error.MultiByteLexicalError => {
+                try io_manager.fastPrint(.STDERR, "Lexical Error: Non-ASCII (multi-byte) character detected.\n", .{});
+            },
+            else => {
+                return err;
+            },
+        }
+        return 1;
+    };
 
     for (tokens.items) |t| {
         try t.selfPrint(io_manager);

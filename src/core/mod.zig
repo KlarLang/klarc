@@ -1,5 +1,7 @@
-pub const Lexer = @import("Lexer.zig");
+pub const Lexer = @import("lexer/Lexer.zig");
+pub const LexError = @import("lexer/LexerError.zig");
 
 test {
-    _ = @import("Lexer.zig");
+    _ = @import("lexer/Lexer.zig");
+    _ = @import("lexer/LexerError.zig");
 }
