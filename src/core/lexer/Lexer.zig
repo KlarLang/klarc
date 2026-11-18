@@ -3,7 +3,7 @@ const std = @import("std");
 const IoManager = @import("global_utils").IoManager;
 const Token = @import("global_utils").Token;
 const TokenType = @import("global_utils").TokenType;
-const LexError = @import("LexerError.zig").LexError;
+const LexError = @import("LexerError.zig");
 
 pub const Lexer = @This();
 
@@ -60,10 +60,8 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
         }
 
         if (std.ascii.isDigit(c)) {
-            self.readNumberLiteral();
+            const token_type = try self.readNumberLiteral();
             const token_value = self.source[start..self.i];
-
-            const token_type: TokenType = if (std.mem.indexOf(u8, token_value, ".") != null) .floating_literal else .integer_literal;
 
             try tokens.append(self.allocator, .{
                 .value = token_value,
@@ -235,18 +233,40 @@ pub fn tokenize(self: *Lexer) !std.ArrayList(Token) {
 
 fn readStringLiteral(self: *Lexer) ![]const u8 {
     const start = self.i;
-    while (!self.EOF() and self.peek() != '"') _ = self.advance();
+    while (!self.EOF() and self.peek() != '"') {
+        if (self.peek() == '\\') {
+            _ = self.advance();
+            if (self.EOF()) return error.UnterminatedStringLiteral;
+            _ = self.advance();
+        } else {
+            _ = self.advance();
+        }
+    }
     if (self.EOF()) return error.UnterminatedStringLiteral;
-    _ = self.advance(); // consume closing quote
-    return self.source[start .. self.i - 1]; // exclude closing quote
+    _ = self.advance();
+    return self.source[start .. self.i - 1];
 }
 
 fn readCharLiteral(self: *Lexer) ![]const u8 {
     const start = self.i;
-    while (!self.EOF() and self.peek() != '\'') _ = self.advance();
+    while (!self.EOF() and self.peek() != '\'') {
+        if (self.peek() == '\\') {
+            _ = self.advance();
+            if (self.EOF()) return error.UnterminatedCharLiteral;
+            _ = self.advance();
+        } else {
+            _ = self.advance();
+        }
+    }
     if (self.EOF()) return error.UnterminatedCharLiteral;
     _ = self.advance();
-    return self.source[start .. self.i - 1];
+
+    const char_literal = self.source[start .. self.i - 1];
+    if (char_literal.len != 1) {
+        return error.InvalidCharLiteral;
+    }
+
+    return char_literal;
 }
 
 fn readIdentifier(self: *Lexer) []const u8 {
@@ -255,55 +275,90 @@ fn readIdentifier(self: *Lexer) []const u8 {
     return self.source[start..self.i];
 }
 
-fn readNumberLiteral(self: *Lexer) void {
+fn readNumberLiteral(self: *Lexer) anyerror!TokenType {
     const first_char = self.source[self.i - 1];
+    var base: u8 = 10;
+    var has_digits = first_char != '0';
+    var prev_underscore = false;
 
     if (first_char == '0' and !self.EOF()) {
         const next = self.peek();
-        if (next == 'x' or next == 'b' or next == 'o') {
+        if (next == 'x' or next == 'X') {
+            base = 16;
             _ = self.advance();
-
-            while (!self.EOF()) {
-                const c = self.peek();
-                if (std.ascii.isAlphanumeric(c) or c == '_') {
-                    _ = self.advance();
-                } else {
-                    break;
-                }
-            }
-            return;
+        } else if (next == 'b' or next == 'B') {
+            base = 2;
+            _ = self.advance();
+        } else if (next == 'o' or next == 'O') {
+            base = 8;
+            _ = self.advance();
+        } else {
+            has_digits = true;
         }
+    } else if (first_char == '0') {
+        has_digits = true;
     }
 
     while (!self.EOF()) {
-        const next = self.peek();
-        if (std.ascii.isDigit(next) or next == '_') {
+        const c = self.peek();
+        if (c == '_') {
+            if (!has_digits or prev_underscore) {
+                return error.InvalidNumberLiteral;
+            }
+            prev_underscore = true;
+            _ = self.advance();
+        } else if (std.ascii.isAlphanumeric(c)) {
+            if (!isValidDigitForBase(c, base)) {
+                return error.InvalidNumberLiteral;
+            }
+            has_digits = true;
+            prev_underscore = false;
             _ = self.advance();
         } else {
             break;
         }
     }
 
-    if (!self.EOF() and self.peek() == '.') {
-        if (self.i + 1 < self.source.len) {
-            const next_after_dot = self.source[self.i + 1];
-            if (std.ascii.isDigit(next_after_dot)) {
-                _ = self.advance();
+    if (!has_digits or prev_underscore) {
+        return error.InvalidNumberLiteral;
+    }
 
-                while (!self.EOF()) {
-                    const next = self.peek();
-                    if (std.ascii.isDigit(next) or next == '_') {
-                        _ = self.advance();
-                    } else {
-                        break;
-                    }
+    if (!self.EOF() and self.peek() == '.') {
+        if (self.i + 1 < self.source.len and std.ascii.isDigit(self.source[self.i + 1])) {
+            if (base != 10) {
+                return error.InvalidNumberLiteral;
+            }
+
+            _ = self.advance();
+            prev_underscore = false;
+
+            while (!self.EOF()) {
+                const c = self.peek();
+                if (c == '_') {
+                    if (prev_underscore) return error.InvalidNumberLiteral;
+                    prev_underscore = true;
+                    _ = self.advance();
+                } else if (std.ascii.isAlphanumeric(c)) {
+                    if (!std.ascii.isDigit(c)) return error.InvalidNumberLiteral;
+                    prev_underscore = false;
+                    _ = self.advance();
+                } else {
+                    break;
                 }
             }
+
+            if (prev_underscore) {
+                return error.InvalidNumberLiteral;
+            }
+
+            return .floating_literal;
         }
     }
+
+    return .integer_literal;
 }
 
-fn advance(self: *Lexer) u8 {
+inline fn advance(self: *Lexer) u8 {
     const c = self.source[self.i];
     self.i += 1;
     if (c == '\n') {
@@ -315,16 +370,26 @@ fn advance(self: *Lexer) u8 {
     return c;
 }
 
-fn peek(self: Lexer) u8 {
+inline fn peek(self: Lexer) u8 {
     return self.source[self.i];
 }
 
-fn isIdentChar(c: u8) bool {
+inline fn isIdentChar(c: u8) bool {
     return std.ascii.isAlphanumeric(c) or c == '_';
 }
 
 inline fn EOF(self: Lexer) bool {
     return self.i >= self.source.len;
+}
+
+inline fn isValidDigitForBase(c: u8, base: u8) bool {
+    return switch (base) {
+        2 => c == '0' or c == '1',
+        8 => c >= '0' and c <= '7',
+        10 => std.ascii.isDigit(c),
+        16 => std.ascii.isHex(c),
+        else => false,
+    };
 }
 
 test "cli: testing command 'lex'" {

@@ -53,6 +53,8 @@ pub fn lex(io_manager: *IoManager, flags: *LexFlags, file_path: []const u8) anye
 
     var lexer = Lexer.init(allocator, source);
     const tokens = lexer.tokenize() catch |err| {
+        try io_manager.fastPrint(.STDERR, "Error while lexing {s}: {s} {d}:{d}\n", .{ file_path, @errorName(err), lexer.line, lexer.col });
+
         switch (err) {
             error.MultiByteLexicalError => {
                 try io_manager.fastPrint(.STDERR, "Lexical Error: Non-ASCII (multi-byte) character detected.\n", .{});

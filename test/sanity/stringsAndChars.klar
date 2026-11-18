@@ -1,5 +1,7 @@
 "Hello World"
 "Á casa é bonita"
+"Testando strings escapadas \" \' \b \t \n \uAJSKJASKJ"
+
 
 'a'
-'é'
+'éassa'
