@@ -73,6 +73,46 @@ pub fn entry(io_manager: *IoManager, args: []const [:0]const u8) !u8 {
             return exit_code;
         }
 
+        if (Checker.cmdEqual(arg, "utest")) {
+            const allocator = std.heap.page_allocator;
+            var ctx = Commands.Test.TestContext{
+                .allocator = allocator,
+                .report_mutex = std.Io.Mutex.init,
+                .sucess = 0,
+                .fails = 0,
+            };
+
+            var tests_dir: []const u8 = "test";
+
+            // Aceita `klarc utest <dir>` e `klarc utest -d|--dir <dir>`.
+            i += 1;
+            while (i < args.len) : (i += 1) {
+                const next_arg = args[i];
+                if (Checker.flagEqual(next_arg, &.{ "-d", "--dir" })) {
+                    if ((i + 1) < args.len) {
+                        i += 1;
+                        tests_dir = args[i];
+                    } else {
+                        try io_manager.fastPrint(.STDERR, "You need to inform the directory path after the flag {s}.\n", .{next_arg});
+                        return 1;
+                    }
+                } else if (std.mem.startsWith(u8, next_arg, "-")) {
+                    try io_manager.fastPrint(.STDERR, "Unknown flag for utest command: {s}\n", .{next_arg});
+                    return 1;
+                } else {
+                    tests_dir = next_arg;
+                }
+            }
+
+            const exit_code = Commands.Test.utest(allocator, io_manager, &ctx, tests_dir) catch |err| {
+                try io_manager.fastPrint(.STDERR, "Error running tests: {s}\n", .{@errorName(err)});
+                return 1;
+            };
+
+            try io_manager.fastPrint(.STDOUT, "Results: {d} failed, {d} passed\n", .{ ctx.fails, ctx.sucess });
+            return exit_code;
+        }
+
         try GlobalFlags.Help.help(io_manager.stderr);
         try io_manager.stderr.flush();
         return 1;
